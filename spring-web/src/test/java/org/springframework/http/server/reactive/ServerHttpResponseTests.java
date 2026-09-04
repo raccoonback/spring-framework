@@ -18,6 +18,7 @@ package org.springframework.http.server.reactive;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -55,6 +56,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author Rossen Stoyanchev
  * @author Sebastien Deleuze
  * @author Brian Clozel
+ * @author Seungbin Ko
  */
 class ServerHttpResponseTests {
 
@@ -211,6 +213,34 @@ class ServerHttpResponseTests {
 				request, response, Collections.emptyMap());
 
 		StepVerifier.create(result).expectError(AbortedException.class).verify();
+
+		bufferFactory.checkForLeaks();
+	}
+
+
+	@Test
+	void writeWithAfterCommitReleasesBody() {
+		LeakAwareDataBufferFactory bufferFactory = new LeakAwareDataBufferFactory();
+		MockServerHttpResponse response = new MockServerHttpResponse(bufferFactory);
+		response.setComplete().block();
+
+		DataBuffer buffer = bufferFactory.allocateBuffer(256);
+		buffer.write("foo", StandardCharsets.UTF_8);
+		response.writeWith(Flux.just(buffer).concatWith(Flux.never()))
+				.block(Duration.ofSeconds(5));
+
+		bufferFactory.checkForLeaks();
+	}
+
+	@Test
+	void writeWithMonoAfterCommitReleasesBody() {
+		LeakAwareDataBufferFactory bufferFactory = new LeakAwareDataBufferFactory();
+		MockServerHttpResponse response = new MockServerHttpResponse(bufferFactory);
+		response.setComplete().block();
+
+		DataBuffer buffer = bufferFactory.allocateBuffer(256);
+		buffer.write("foo", StandardCharsets.UTF_8);
+		response.writeWith(Mono.just(buffer)).block(Duration.ofSeconds(5));
 
 		bufferFactory.checkForLeaks();
 	}

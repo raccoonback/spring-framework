@@ -42,6 +42,7 @@ import org.springframework.util.Assert;
  * through the result publisher. Otherwise, the write function is invoked.
  *
  * @author Rossen Stoyanchev
+ * @author Seungbin Ko
  * @author Stephane Maldini
  * @since 5.0
  * @param <T> the type of element signaled
@@ -332,6 +333,15 @@ public class ChannelSendOperator<T> extends Mono<Void> implements Scannable {
 			}
 		}
 
+		private void cancelIfNotSubscribed() {
+			synchronized (this) {
+				if (this.writeSubscriber != null) {
+					return;
+				}
+			}
+			cancel();
+		}
+
 		private void releaseCachedItem() {
 			synchronized (this) {
 				Object item = this.item;
@@ -419,7 +429,12 @@ public class ChannelSendOperator<T> extends Mono<Void> implements Scannable {
 
 		@Override
 		public void onComplete() {
-			this.completionSubscriber.onComplete();
+			try {
+				this.completionSubscriber.onComplete();
+			}
+			finally {
+				this.writeBarrier.cancelIfNotSubscribed();
+			}
 		}
 
 		@Override

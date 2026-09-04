@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Publisher;
@@ -41,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * @author Rossen Stoyanchev
+ * @author Seungbin Ko
  * @author Stephane Maldini
  */
 class ChannelSendOperatorTests {
@@ -195,6 +197,25 @@ class ChannelSendOperatorTests {
 				});
 
 		StepVerifier.create(operator).expectErrorMessage("err").verify(Duration.ofSeconds(5));
+		bufferFactory.checkForLeaks();
+	}
+
+	@Test
+	void completeFromWriteFunctionWhileItemCached() {
+		LeakAwareDataBufferFactory bufferFactory = new LeakAwareDataBufferFactory();
+		AtomicBoolean cancelled = new AtomicBoolean();
+
+		ChannelSendOperator<DataBuffer> operator = new ChannelSendOperator<>(
+				Flux.<DataBuffer>create(sink -> {
+					DataBuffer dataBuffer = bufferFactory.allocateBuffer(256);
+					dataBuffer.write("foo", StandardCharsets.UTF_8);
+					sink.next(dataBuffer);
+				}).doOnCancel(() -> cancelled.set(true)),
+				publisher -> Mono.empty());
+
+		StepVerifier.create(operator).verifyComplete();
+
+		assertThat(cancelled).isTrue();
 		bufferFactory.checkForLeaks();
 	}
 

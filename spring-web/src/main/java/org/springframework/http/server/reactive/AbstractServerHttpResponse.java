@@ -45,6 +45,7 @@ import org.springframework.util.MultiValueMap;
  * @author Juergen Hoeller
  * @author Sebastien Deleuze
  * @author Brian Clozel
+ * @author Seungbin Ko
  * @since 5.0
  */
 public abstract class AbstractServerHttpResponse implements ServerHttpResponse {
@@ -183,6 +184,11 @@ public abstract class AbstractServerHttpResponse implements ServerHttpResponse {
 									}
 									catch (Throwable ex) {
 										return Mono.error(ex);
+									}
+								})
+								.doOnSuccess(noOp -> {
+									if (!subscribed.get()) {
+										DataBufferUtils.release(buffer);
 									}
 								})
 								.doOnError(ex -> DataBufferUtils.release(buffer))
